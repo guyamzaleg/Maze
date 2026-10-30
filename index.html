@@ -156,19 +156,51 @@ button:focus-visible,input:focus-visible,.row:focus-visible{outline:2px solid va
   .hud-read{gap:12px;padding:7px 10px}.hud-read b{font-size:13.5px}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
-
 #map{position:absolute;inset:0}
 .maplibregl-ctrl-attrib{font-size:10px}
 .maplibregl-ctrl-bottom-left{bottom:var(--sheet-h,0px)}
 @media (min-width:900px){.maplibregl-ctrl-bottom-left{bottom:0}}
+.btnrow{display:flex;gap:8px}
+.ibtn{width:42px;height:42px}
+.ibtn svg{display:block}
+.ibtn.accent{color:var(--blaze-orange);border-color:rgba(243,144,46,.5)}
+.menu{background:var(--panel);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--line);border-radius:14px;padding:10px;display:grid;gap:10px;width:200px;direction:rtl}
+.menu .seg-toggle{background:rgba(255,255,255,.05);justify-content:stretch}
+.menu .seg-toggle button{flex:1}
+.mrow{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:var(--fg);cursor:pointer}
+.mrow input{accent-color:var(--blaze-orange);width:18px;height:18px}
+.menu .exag{background:none;border:0;padding:0;width:auto}
+.brand{padding:6px 12px 6px 8px;gap:8px}
+.brand .ring{width:36px;height:36px}
+.brand h1{font-size:18px}
+@media (max-width:899px){.brand small{display:none}.brand h1{font-size:16px}}
+.flyrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}
+.flyrow .btn.fly.big{margin:0;font-size:14.5px;padding:12px 8px}
 .spd{display:inline-flex;border:1px solid rgba(255,255,255,.4);border-radius:999px;overflow:hidden;pointer-events:auto}
+.spd[hidden]{display:none}
 .spd button{border:0!important;border-radius:0!important;background:rgba(0,0,0,.45);padding:4px 9px!important}
 .spd button[aria-pressed="true"]{background:#fff;color:#111}
-.btn.fly.big{width:100%;margin-bottom:12px;padding:13px;font-size:16px;background:rgba(243,144,46,.15)}
 .io{display:flex;gap:8px;margin-top:10px}.io .btn{flex:1;font-size:13px;padding:8px}
 #ioBox{display:flex;gap:8px;margin-top:8px}#ioBox[hidden]{display:none}
 #ioText{flex:1;min-width:0;background:rgba(0,0,0,.3);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:8px;font:13px var(--f-body);direction:ltr}
 .hud{z-index:5}
+/* immersive flight: hide everything except the HUD */
+body.flying .top,body.flying .panel,body.flying .maplibregl-ctrl-bottom-left{display:none}
+body.flying .hud{right:0!important;padding-top:calc(14px + env(safe-area-inset-top,0px));--hud-b:calc(18px + env(safe-area-inset-bottom,0px))}
+body.flying .hud-read{top:calc(58px + env(safe-area-inset-top,0px));bottom:auto}
+/* pilot joysticks */
+.pilot{position:absolute;inset:0;z-index:6;pointer-events:none}
+.stick{position:absolute;bottom:calc(30px + env(safe-area-inset-bottom,0px));width:132px;height:132px;border-radius:50%;
+  background:radial-gradient(circle,rgba(0,0,0,.18),rgba(0,0,0,.42));border:1.5px solid rgba(255,255,255,.45);pointer-events:auto;touch-action:none;
+  display:grid;place-items:center;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+#stickL{left:max(22px,env(safe-area-inset-left,0px))}
+#stickR{right:max(22px,env(safe-area-inset-right,0px))}
+.stick i{width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.88);box-shadow:0 2px 10px rgba(0,0,0,.45);transition:transform .12s ease-out;pointer-events:none}
+.stick span{position:absolute;bottom:-22px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 3px #000;direction:rtl}
+.keys{position:absolute;bottom:calc(14px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);margin:0;font-size:12px;color:#fff;text-shadow:0 1px 3px #000;white-space:nowrap;direction:rtl}
+body.flying .pilot:not([hidden]) ~ * .hud-bar{display:none}
+@media (pointer:coarse){.keys{display:none}}
+@media (min-width:900px){.stick{width:116px;height:116px}}
 </style>
 </head>
 <body>
@@ -177,31 +209,35 @@ button:focus-visible,input:focus-visible,.row:focus-visible{outline:2px solid va
   <div class="hud" id="hud" hidden>
     <div class="hud-top"><span class="rec">● REC</span><span id="hudName"></span>
       <span class="spd"><button data-spd="1" aria-pressed="true">×1</button><button data-spd="2">×2</button><button data-spd="4">×4</button></span>
-      <button id="hudPause">השהה ❚❚</button><button id="hudStop">עצור ✕</button></div>
+      <button id="hudTake">🎮 קח שליטה</button><button id="hudPause">השהה ❚❚</button><button id="hudStop">יציאה ✕</button></div>
     <div class="hud-cross" aria-hidden="true"></div>
     <div class="hud-read">
-      <div><small>גובה מעל פני הים</small><b id="hudAlt">–</b></div>
+      <div><small id="hudAltL">גובה מעל פני הים</small><b id="hudAlt">–</b></div>
       <div><small>כיוון</small><b id="hudHdg">–</b></div>
-      <div><small>התקדמות</small><b id="hudKm">–</b></div>
+      <div><small id="hudKmL">התקדמות</small><b id="hudKm">–</b></div>
     </div>
-    <div class="hud-bar"><i id="hudBar"></i></div>
+    <div class="hud-bar" id="hudBarBox"><i id="hudBar"></i></div>
+  </div>
+  <div class="pilot" id="pilot" hidden>
+    <div class="stick" id="stickL"><i></i><span>קדימה · אחורה · פנייה</span></div>
+    <div class="stick" id="stickR"><i></i><span>גובה · הזזה הצידה</span></div>
+    <p class="keys">מקלדת: חיצים לטיסה ולפנייה · W/S גובה · A/D הזזה הצידה</p>
   </div>
 
-  <div class="top">
+  <div class="top" id="top">
     <div class="tools">
-      <div class="seg-toggle" role="group" aria-label="תצוגה">
-        <button id="b2d" aria-pressed="false">2D</button>
-        <button id="b3d" aria-pressed="true">3D</button>
+      <div class="btnrow">
+        <button class="ibtn" id="menuBtn" aria-label="הגדרות מפה" aria-expanded="false"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 3 2.5 8 12 13l9.5-5z"/><path d="M2.5 12.5 12 17.5l9.5-5"/></svg></button>
+        <button class="ibtn" id="zfit" aria-label="הצג את כל השביל"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+        <button class="ibtn accent" id="freeBtn" aria-label="הטסת רחפן חופשית מכאן" title="הטסת רחפן חופשית"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="5.5" cy="5.5" r="3"/><circle cx="18.5" cy="5.5" r="3"/><circle cx="5.5" cy="18.5" r="3"/><circle cx="18.5" cy="18.5" r="3"/><path d="M8 8l3 3M16 8l-3 3M8 16l3-3M16 16l-3-3"/><rect x="10" y="10" width="4" height="4" rx="1" fill="currentColor"/></svg></button>
       </div>
-      <div class="iconbtns">
-        <button class="ibtn" id="zin" aria-label="התקרבות">+</button>
-        <button class="ibtn" id="zout" aria-label="התרחקות">−</button>
-        <button class="ibtn" id="zfit" aria-label="הצג את כל השביל">⤢</button>
-        <button class="ibtn" id="lbl" aria-label="שמות מקומות" aria-pressed="true" title="שמות מקומות">Aa</button>
-      </div>
-      <div class="exag" id="exagBox">
-        <label for="exag"><span>הגבהת תבליט</span><b id="exagVal">×1.5</b></label>
-        <input type="range" id="exag" min="1" max="3" step="0.25" value="1.5">
+      <div class="menu" id="menu" hidden>
+        <div class="seg-toggle" role="group" aria-label="תצוגה"><button id="b2d" aria-pressed="false">2D</button><button id="b3d" aria-pressed="true">3D</button></div>
+        <label class="mrow" for="lblChk"><span>שמות מקומות</span><input type="checkbox" id="lblChk" checked></label>
+        <div class="exag" id="exagBox">
+          <label for="exag"><span>הגבהת תבליט</span><b id="exagVal">×1.5</b></label>
+          <input type="range" id="exag" min="1" max="3" step="0.25" value="1.5">
+        </div>
       </div>
     </div>
     <div class="brand">
@@ -211,7 +247,6 @@ button:focus-visible,input:focus-visible,.row:focus-visible{outline:2px solid va
         <text id="ringTxt" x="21" y="25" text-anchor="middle" fill="#EEF2EC" font-size="11" font-weight="800" font-family="Assistant,Arial">0%</text>
       </svg>
       <div><h1>שביל ישראל</h1><small id="brandSub">0 מתוך 0 ק״מ</small></div>
-      <span class="blaze" aria-hidden="true"><i></i><i></i><i></i></span>
     </div>
   </div>
 
@@ -232,7 +267,7 @@ button:focus-visible,input:focus-visible,.row:focus-visible{outline:2px solid va
       <p class="note">תמונות לוויין: Esri World Imagery (Maxar, Earthstar Geographics ואחרים). גבהים: Mapzen Terrain Tiles / AWS. תוואי השביל: OpenStreetMap (© תורמי OpenStreetMap, ODbL). רמות הקושי והחלוקה למקטעים הן הערכה שלי, ולניווט בשטח כדאי להשתמש גם במפות הרשמיות.</p>
     </div>
   </aside>
-  <div class="hint" id="hint">לחצו על מקטע בשביל · שתי אצבעות להטיה וסיבוב</div>
+  <div class="hint" id="hint" hidden></div>
 </div>
 
 <script src="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
@@ -334,8 +369,11 @@ function setMode(m){mode=m;$("b2d").setAttribute("aria-pressed",m==="2d");$("b3d
   if(m==="2d"){map.setTerrain(null);map.easeTo({pitch:0,bearing:0,duration:900})}
   else{map.setTerrain({source:"dem",exaggeration:+$("exag").value});map.easeTo({pitch:60,duration:900})}}
 $("b2d").onclick=()=>setMode("2d");$("b3d").onclick=()=>setMode("3d");
-$("zin").onclick=()=>map.zoomIn();$("zout").onclick=()=>map.zoomOut();$("zfit").onclick=()=>fitAll();
-$("lbl").onclick=e=>{const on=e.currentTarget.getAttribute("aria-pressed")!=="true";e.currentTarget.setAttribute("aria-pressed",on);map.setLayoutProperty("ref","visibility",on?"visible":"none")};
+$("zfit").onclick=()=>fitAll();
+$("menuBtn").onclick=e=>{const open=$("menu").hidden;$("menu").hidden=!open;e.currentTarget.setAttribute("aria-expanded",open)};
+map.on("mousedown",()=>{$("menu").hidden=true});map.on("touchstart",()=>{$("menu").hidden=true});
+$("lblChk").onchange=e=>map.setLayoutProperty("ref","visibility",e.target.checked?"visible":"none");
+$("freeBtn").onclick=()=>{const c=map.getCenter();startPilot([c.lat,c.lng],map.getBearing())};
 $("exag").oninput=e=>{$("exagVal").textContent="×"+e.target.value;if(mode==="3d")map.setTerrain({source:"dem",exaggeration:+e.target.value})};
 
 // ---------- UI
@@ -370,7 +408,7 @@ function renderDetail(){const s=BYID[selected];
   $("detail").innerHTML=`<div class="eyebrow"><span>מקטע ${s.n} מתוך ${SEGS.length} · ${REGION[s.region]}</span><button class="btn" id="closeBtn" aria-label="סגירה" style="padding:3px 10px">✕</button></div>
    <h2>${esc(s.from)} ← ${esc(s.to)}</h2>
    <div class="chips"><span class="chip">${s.km} ק״מ</span><span class="chip diff d-${s.diff}">${DIFF[s.diff]}</span>${isD?`<span class="chip done">✓ בוצע${dt?" · "+new Date(dt).toLocaleDateString("he-IL"):""}</span>`:""}</div>
-   <button class="btn fly big" id="flyBtn">✈ טיסת רחפן על המקטע</button>
+   <div class="flyrow"><button class="btn fly big" id="flyBtn">✈ טיסה אוטומטית</button><button class="btn fly big" id="pilotBtn">🎮 הטס בעצמך</button></div>
    <div class="profile">${profileSVG(s)}</div>
    <div class="stats"><div class="stat"><small>עלייה מצטברת</small><b>${s.up} מ׳</b></div><div class="stat"><small>ירידה מצטברת</small><b>${s.down} מ׳</b></div><div class="stat"><small>נקודה גבוהה</small><b>${s.max} מ׳</b></div><div class="stat"><small>נקודה נמוכה</small><b>${s.min} מ׳</b></div></div>
    <p class="sec-label">אטרקציות מרכזיות</p><ul class="attr">${s.attr.map(a=>`<li>${esc(a)}</li>`).join("")}</ul>
@@ -379,7 +417,7 @@ function renderDetail(){const s=BYID[selected];
      <button class="btn" id="prevBtn" ${s.n===1?"disabled":""}>→ הקודם</button><button class="btn" id="nextSegBtn" ${s.n===SEGS.length?"disabled":""}>הבא ←</button></div>`;
   $("toggleBtn").onclick=()=>toggle(s.id);$("prevBtn").onclick=()=>select(SEGS[s.n-2].id,true);$("nextSegBtn").onclick=()=>select(SEGS[s.n].id,true);
   $("closeBtn").onclick=()=>{selected=null;paint();if(isPhone())setSheet("peek")};
-  $("flyBtn").onclick=()=>startFlight(s);
+  $("flyBtn").onclick=()=>startFlight(s);$("pilotBtn").onclick=()=>startPilot(s.geom[0],bearing(s.geom[0],along(s,2000)));
   const svg=$("prof");
   const mv=e=>{const r=svg.getBoundingClientRect();const f=Math.min(1,Math.max(0,1-(e.clientX-r.left)/r.width));const i=Math.round(f*(s.prof.length-1));const x=4+312*(1-i/(s.prof.length-1));
     $("profCursor").setAttribute("x1",x);$("profCursor").setAttribute("x2",x);$("profCursor").setAttribute("opacity",.6);$("profRead").textContent=`${(f*s.km).toFixed(1)} ק״מ · ${s.prof[i]} מ׳`;
@@ -408,14 +446,69 @@ function flightStyle(on){if(!map.getLayer("trail"))return;
   for(const id of ["trail-glow","nums","nums-t","ends"])map.setLayoutProperty(id,"visibility",on?"none":"visible");}
 function startFlight(s){
   stopFlight();selected=s.id;paint();if(mode!=="3d")setMode("3d");if(isPhone())setSheet("peek");
-  $("hud").hidden=false;$("hudName").textContent=`${s.n} · ${s.from} ← ${s.to}`;$("hint").style.opacity=0;flightStyle(true);
+  $("hud").hidden=false;$("hudName").textContent=`${s.n} · ${s.from} ← ${s.to}`;$("hint").style.opacity=0;flightStyle(true);immersive(true);$("hudTake").hidden=false;$("hudPause").hidden=false;document.querySelector(".spd").hidden=false;$("hudAltL").textContent="גובה מעל פני הים";$("hudKmL").textContent="התקדמות";$("hudBarBox").hidden=false;
   const start=s.geom[0],ahead=along(s,500);
   flight={s,d:0,speed:+(document.querySelector('[data-spd][aria-pressed="true"]')?.dataset.spd||1),paused:false,brg:bearing(start,along(s,2000)),last:0,ready:false};
   map.flyTo({center:ll(ahead),zoom:14.6,pitch:74,bearing:flight.brg,duration:3200,essential:true,padding:isPhone()?{bottom:sheetH()}:{right:400}});
   map.once("moveend",()=>{if(flight&&flight.s===s){flight.ready=true;flight.last=performance.now();requestAnimationFrame(tick)}});
 }
-function stopFlight(){if(!flight)return;flight=null;$("hud").hidden=true;flightStyle(false)}
-$("hudStop").onclick=stopFlight;
+function stopFlight(){if(!flight)return;flight=null;$("hud").hidden=true;flightStyle(false);immersive(false)}
+function immersive(on){document.body.classList.toggle("flying",on);$("menu").hidden=true}
+$("hudStop").onclick=()=>{if(pilot)stopPilot();else stopFlight()};
+$("hudTake").onclick=()=>{if(!flight)return;const c=map.getCenter(),br=map.getBearing();flight=null;startPilot([c.lat,c.lng],br,true)};
+
+// ---------- manual drone piloting
+let pilot=null;const keys=new Set();
+const stick={L:{x:0,y:0},R:{x:0,y:0}};
+function dest(p,brg,dist){const d=dist/R,b=brg*rad,la=p[0]*rad,lo=p[1]*rad;const la2=Math.asin(Math.sin(la)*Math.cos(d)+Math.cos(la)*Math.sin(d)*Math.cos(b));
+  const lo2=lo+Math.atan2(Math.sin(b)*Math.sin(d)*Math.cos(la),Math.cos(d)-Math.sin(la)*Math.sin(la2));return [la2/rad,lo2/rad]}
+function startPilot(p,brg,keepView){
+  if(flight){flight=null}
+  if(mode!=="3d")setMode("3d");if(isPhone())setSheet("peek");
+  pilot={p:[p[0],p[1]],hdg:(brg+360)%360,agl:350,v:0,vs:0,last:performance.now()};
+  $("hud").hidden=false;$("pilot").hidden=false;flightStyle(true);immersive(true);
+  $("hudName").textContent="הטסה ידנית";$("hudTake").hidden=true;$("hudPause").hidden=true;document.querySelector(".spd").hidden=true;$("hudBarBox").hidden=true;
+  $("hudAltL").textContent="גובה מעל הקרקע";$("hudKmL").textContent="מהירות";
+  for(const k of ["dragPan","dragRotate","scrollZoom","touchZoomRotate","keyboard","doubleClickZoom"])map[k].disable();
+  const go=()=>{if(pilot){pilot.last=performance.now();requestAnimationFrame(pilotTick)}};
+  if(keepView)go();else{map.flyTo({center:ll(p),bearing:pilot.hdg,pitch:72,zoom:14.4,duration:2200,essential:true});map.once("moveend",go)}
+}
+function stopPilot(){if(!pilot)return;pilot=null;keys.clear();$("pilot").hidden=true;$("hud").hidden=true;flightStyle(false);immersive(false);
+  for(const k of ["dragPan","dragRotate","scrollZoom","touchZoomRotate","keyboard","doubleClickZoom"])map[k].enable();
+  stick.L={x:0,y:0};stick.R={x:0,y:0};document.querySelectorAll(".stick i").forEach(i=>i.style.transform="")}
+function pilotTick(now){
+  if(!pilot)return;const P=pilot,dt=Math.min(.05,(now-P.last)/1000);P.last=now;
+  const k=c=>keys.has(c)?1:0;
+  const fwd=Math.max(-1,Math.min(1,-stick.L.y+k("ArrowUp")-k("ArrowDown")));
+  const turn=Math.max(-1,Math.min(1,stick.L.x+k("ArrowRight")-k("ArrowLeft")));
+  const climb=Math.max(-1,Math.min(1,-stick.R.y+k("KeyW")-k("KeyS")));
+  const side=Math.max(-1,Math.min(1,stick.R.x+k("KeyD")-k("KeyA")));
+  const vmax=60+P.agl*.35; // faster when higher
+  P.v+=(fwd*vmax-P.v)*Math.min(1,dt*1.6);
+  P.vs+=(side*vmax*.5-P.vs)*Math.min(1,dt*1.6);
+  P.hdg=(P.hdg+turn*55*dt+360)%360;
+  P.agl=Math.max(40,Math.min(6000,P.agl*Math.exp(climb*.9*dt)));
+  if(Math.abs(P.v)>.01)P.p=dest(P.p,P.v>=0?P.hdg:(P.hdg+180)%360,Math.abs(P.v)*dt);
+  if(Math.abs(P.vs)>.01)P.p=dest(P.p,(P.hdg+(P.vs>0?90:270))%360,Math.abs(P.vs)*dt);
+  P.p[0]=Math.max(29.2,Math.min(33.6,P.p[0]));P.p[1]=Math.max(33.9,Math.min(36.2,P.p[1]));
+  const zoom=Math.max(8,Math.min(17.5,14.4-Math.log2(P.agl/350)));
+  const pitch=Math.max(50,Math.min(78,72+(P.agl<200?4:0)-(P.agl>1500?Math.min(18,(P.agl-1500)/200):0)));
+  map.jumpTo({center:ll(P.p),bearing:P.hdg,pitch,zoom});
+  $("hudAlt").textContent=Math.round(P.agl)+" מ׳";
+  $("hudHdg").textContent=String(Math.round(P.hdg)).padStart(3,"0")+"°";
+  $("hudKm").textContent=Math.round(Math.abs(P.v)*3.6)+" קמ״ש";
+  requestAnimationFrame(pilotTick);
+}
+addEventListener("keydown",e=>{if(!pilot)return;if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","KeyW","KeyS","KeyA","KeyD"].includes(e.code)){keys.add(e.code);e.preventDefault()}if(e.code==="Escape")stopPilot()});
+addEventListener("keyup",e=>keys.delete(e.code));
+addEventListener("blur",()=>keys.clear());
+document.querySelectorAll(".stick").forEach(el=>{const side=el.id==="stickL"?"L":"R",knob=el.querySelector("i");let id=null;
+  const upd=e=>{const r=el.getBoundingClientRect(),cx=r.left+r.width/2,cy=r.top+r.height/2,rad_=r.width/2-22;let dx=e.clientX-cx,dy=e.clientY-cy;const m=Math.hypot(dx,dy);if(m>rad_){dx*=rad_/m;dy*=rad_/m}
+    stick[side]={x:dx/rad_,y:dy/rad_};knob.style.transform=`translate(${dx}px,${dy}px)`};
+  el.addEventListener("pointerdown",e=>{id=e.pointerId;el.setPointerCapture(id);upd(e);e.preventDefault();e.stopPropagation()});
+  el.addEventListener("pointermove",e=>{if(e.pointerId===id)upd(e)});
+  const end=e=>{if(e.pointerId!==id)return;id=null;stick[side]={x:0,y:0};knob.style.transform=""};
+  el.addEventListener("pointerup",end);el.addEventListener("pointercancel",end)});
 $("hudPause").onclick=e=>{if(!flight)return;flight.paused=!flight.paused;e.target.textContent=flight.paused?"המשך ▶":"השהה ❚❚";flight.last=performance.now();if(!flight.paused)requestAnimationFrame(tick)};
 map.on("dragstart",()=>{if(flight&&flight.ready&&!flight.paused){flight.paused=true;$("hudPause").textContent="המשך ▶"}});
 function tick(now){
@@ -435,7 +528,7 @@ function tick(now){
   requestAnimationFrame(tick);
 }
 paintStats();renderList();renderDetail();
-setTimeout(()=>$("hint").style.opacity=0,7000);
+
 </script>
 
 </body>
