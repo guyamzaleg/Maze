@@ -11,23 +11,30 @@ jobs:
       - name: Query OpenStreetMap (Overpass) for the Israel National Trail
         run: |
           mkdir -p data
-          Q='[out:json][timeout:240];
-          (rel["route"="hiking"]["name:en"~"Israel National Trail",i];rel["route"="hiking"]["name"~"^שביל ישראל"];)->.top;
+          LOG=data/log.txt; : > $LOG
+          cat > q.txt <<'Q'
+          [out:json][timeout:600];
+          (rel["route"="hiking"]["name:en"~"Israel National Trail",i];rel["route"="hiking"]["name"~"שביל ישראל"];)->.top;
           (rel(r.top);)->.sub;
           (.top;.sub;)->.rels;
           .rels out body;
           way(r.rels);
-          out geom qt;'
-          for u in https://overpass-api.de/api/interpreter https://overpass.kumi.systems/api/interpreter https://maps.mail.ru/osm/tools/overpass/api/interpreter; do
-            if curl -sS --fail --max-time 300 --data-urlencode "data=$Q" "$u" -o data/int.json; then
-              python3 -c "import json;d=json.load(open('data/int.json'));print(len(d['elements']))" && break
-            fi
+          out geom qt;
+          Q
+          for u in https://overpass-api.de/api/interpreter https://overpass.private.coffee/api/interpreter https://overpass.kumi.systems/api/interpreter https://maps.mail.ru/osm/tools/overpass/api/interpreter; do
+            echo "== $u" >> $LOG
+            code=$(curl -sS --max-time 700 -A "shvil-israel-tracker/1.0 (github.com/guyamzaleg)" --data-urlencode "data@q.txt" -o data/int.json -w '%{http_code}' "$u" 2>>$LOG) || true
+            echo "http $code size $(stat -c %s data/int.json 2>/dev/null)" >> $LOG
+            if [ "$code" = "200" ] && python3 -c "import json,sys;d=json.load(open('data/int.json'));n=len(d['elements']);print('elements',n);sys.exit(0 if n>10 else 1)" >> $LOG 2>&1; then echo OK >> $LOG; break; fi
+            head -c 600 data/int.json >> $LOG 2>/dev/null; echo >> $LOG
+            rm -f data/int.json
           done
-          ls -la data
+          cat $LOG
       - name: Commit result
+        if: always()
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@users.noreply.github.com"
-          git add data
+          git add -A data
           git commit -m "Trail data from OpenStreetMap [skip ci]" || echo nothing
           git push
