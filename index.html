@@ -399,15 +399,22 @@ $("ioApply").onclick=()=>{try{const v=JSON.parse(atob($("ioText").value.trim()))
 // ---------- drone flight
 let flight=null;
 document.querySelectorAll("[data-spd]").forEach(b=>b.onclick=()=>{document.querySelectorAll("[data-spd]").forEach(x=>x.setAttribute("aria-pressed",x===b));if(flight)flight.speed=+b.dataset.spd});
+// thin "real path" look while flying, normal look otherwise
+const LW={trail:["interpolate",["linear"],["zoom"],6,2.2,12,5,15,8],"trail-case":["interpolate",["linear"],["zoom"],6,4,12,9,15,13]};
+function flightStyle(on){if(!map.getLayer("trail"))return;
+  map.setPaintProperty("trail","line-width",on?["interpolate",["exponential",2],["zoom"],12,.8,15,1.6,17,4]:LW.trail);
+  map.setPaintProperty("trail-case","line-width",on?["interpolate",["exponential",2],["zoom"],12,1.4,15,2.8,17,7]:LW["trail-case"]);
+  map.setPaintProperty("trail-case","line-opacity",on?.35:.85);
+  for(const id of ["trail-glow","nums","nums-t","ends"])map.setLayoutProperty(id,"visibility",on?"none":"visible");}
 function startFlight(s){
   stopFlight();selected=s.id;paint();if(mode!=="3d")setMode("3d");if(isPhone())setSheet("peek");
-  $("hud").hidden=false;$("hudName").textContent=`${s.n} · ${s.from} ← ${s.to}`;$("hint").style.opacity=0;
+  $("hud").hidden=false;$("hudName").textContent=`${s.n} · ${s.from} ← ${s.to}`;$("hint").style.opacity=0;flightStyle(true);
   const start=s.geom[0],ahead=along(s,500);
   flight={s,d:0,speed:+(document.querySelector('[data-spd][aria-pressed="true"]')?.dataset.spd||1),paused:false,brg:bearing(start,along(s,2000)),last:0,ready:false};
   map.flyTo({center:ll(ahead),zoom:14.6,pitch:74,bearing:flight.brg,duration:3200,essential:true,padding:isPhone()?{bottom:sheetH()}:{right:400}});
   map.once("moveend",()=>{if(flight&&flight.s===s){flight.ready=true;flight.last=performance.now();requestAnimationFrame(tick)}});
 }
-function stopFlight(){if(!flight)return;flight=null;$("hud").hidden=true}
+function stopFlight(){if(!flight)return;flight=null;$("hud").hidden=true;flightStyle(false)}
 $("hudStop").onclick=stopFlight;
 $("hudPause").onclick=e=>{if(!flight)return;flight.paused=!flight.paused;e.target.textContent=flight.paused?"המשך ▶":"השהה ❚❚";flight.last=performance.now();if(!flight.paused)requestAnimationFrame(tick)};
 map.on("dragstart",()=>{if(flight&&flight.ready&&!flight.paused){flight.paused=true;$("hudPause").textContent="המשך ▶"}});
