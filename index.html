@@ -190,14 +190,14 @@ body.flying .hud{right:0!important;padding-top:calc(14px + env(safe-area-inset-t
 body.flying .hud-read{top:calc(58px + env(safe-area-inset-top,0px));bottom:auto}
 /* pilot joysticks */
 .pilot{position:absolute;inset:0;z-index:6;pointer-events:none}
-.stick{position:absolute;bottom:calc(30px + env(safe-area-inset-bottom,0px));width:132px;height:132px;border-radius:50%;
+.stick{position:absolute;bottom:calc(64px + env(safe-area-inset-bottom,0px));width:132px;height:132px;border-radius:50%;
   background:radial-gradient(circle,rgba(0,0,0,.18),rgba(0,0,0,.42));border:1.5px solid rgba(255,255,255,.45);pointer-events:auto;touch-action:none;
   display:grid;place-items:center;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
 #stickL{left:max(22px,env(safe-area-inset-left,0px))}
 #stickR{right:max(22px,env(safe-area-inset-right,0px))}
 .stick i{width:52px;height:52px;border-radius:50%;background:rgba(255,255,255,.88);box-shadow:0 2px 10px rgba(0,0,0,.45);transition:transform .12s ease-out;pointer-events:none}
 .stick span{position:absolute;bottom:-22px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:11px;font-weight:700;color:#fff;text-shadow:0 1px 3px #000;direction:rtl}
-.keys{position:absolute;bottom:calc(14px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);margin:0;font-size:12px;color:#fff;text-shadow:0 1px 3px #000;white-space:nowrap;direction:rtl}
+.keys{position:absolute;bottom:calc(40px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);margin:0;font-size:12px;color:#fff;text-shadow:0 1px 3px #000;white-space:nowrap;direction:rtl}
 body.flying .pilot:not([hidden]) ~ * .hud-bar{display:none}
 @media (pointer:coarse){.keys{display:none}}
 @media (min-width:900px){.stick{width:116px;height:116px}}
@@ -219,9 +219,9 @@ body.flying .pilot:not([hidden]) ~ * .hud-bar{display:none}
     <div class="hud-bar" id="hudBarBox"><i id="hudBar"></i></div>
   </div>
   <div class="pilot" id="pilot" hidden>
-    <div class="stick" id="stickL"><i></i><span>קדימה · אחורה · פנייה</span></div>
-    <div class="stick" id="stickR"><i></i><span>גובה · הזזה הצידה</span></div>
-    <p class="keys">מקלדת: חיצים לטיסה ולפנייה · W/S גובה · A/D הזזה הצידה</p>
+    <div class="stick" id="stickL"><i></i><span>גובה ↕ · סיבוב ↔</span></div>
+    <div class="stick" id="stickR"><i></i><span>קדימה/אחורה ↕ · צד ↔</span></div>
+    <p class="keys">מקלדת: W/S גובה · A/D סיבוב · חיצים קדימה/אחורה וצד · Esc יציאה</p>
   </div>
 
   <div class="top" id="top">
@@ -473,21 +473,24 @@ function startPilot(p,brg,keepView){
   const go=()=>{if(pilot){pilot.last=performance.now();requestAnimationFrame(pilotTick)}};
   if(keepView)go();else{map.flyTo({center:ll(p),bearing:pilot.hdg,pitch:72,zoom:14.4,duration:2200,essential:true});map.once("moveend",go)}
 }
+window.__pilot=()=>pilot;window.__stick=stick;
 function stopPilot(){if(!pilot)return;pilot=null;keys.clear();$("pilot").hidden=true;$("hud").hidden=true;flightStyle(false);immersive(false);
   for(const k of ["dragPan","dragRotate","scrollZoom","touchZoomRotate","keyboard","doubleClickZoom"])map[k].enable();
   stick.L={x:0,y:0};stick.R={x:0,y:0};document.querySelectorAll(".stick i").forEach(i=>i.style.transform="")}
 function pilotTick(now){
-  if(!pilot)return;const P=pilot,dt=Math.min(.05,(now-P.last)/1000);P.last=now;
+  if(!pilot)return;const P=pilot,dt=Math.min(.25,(now-P.last)/1000);P.last=now;
   const k=c=>keys.has(c)?1:0;
-  const fwd=Math.max(-1,Math.min(1,-stick.L.y+k("ArrowUp")-k("ArrowDown")));
-  const turn=Math.max(-1,Math.min(1,stick.L.x+k("ArrowRight")-k("ArrowLeft")));
-  const climb=Math.max(-1,Math.min(1,-stick.R.y+k("KeyW")-k("KeyS")));
-  const side=Math.max(-1,Math.min(1,stick.R.x+k("KeyD")-k("KeyA")));
+  // Mode 2, like a real drone remote: left stick = altitude + yaw, right stick = forward/back + sideways
+  const dz=v=>Math.abs(v)<.12?0:(v-Math.sign(v)*.12)/.88;
+  const climb=Math.max(-1,Math.min(1,dz(-stick.L.y)+k("KeyW")-k("KeyS")));
+  const turn=Math.max(-1,Math.min(1,dz(stick.L.x)+k("KeyD")-k("KeyA")));
+  const fwd=Math.max(-1,Math.min(1,dz(-stick.R.y)+k("ArrowUp")-k("ArrowDown")));
+  const side=Math.max(-1,Math.min(1,dz(stick.R.x)+k("ArrowRight")-k("ArrowLeft")));
   const vmax=60+P.agl*.35; // faster when higher
   P.v+=(fwd*vmax-P.v)*Math.min(1,dt*1.6);
   P.vs+=(side*vmax*.5-P.vs)*Math.min(1,dt*1.6);
-  P.hdg=(P.hdg+turn*55*dt+360)%360;
-  P.agl=Math.max(40,Math.min(6000,P.agl*Math.exp(climb*.9*dt)));
+  P.hdg=(P.hdg+turn*45*dt+360)%360;
+  P.agl=Math.max(40,Math.min(6000,P.agl*Math.exp(climb*.6*dt)));
   if(Math.abs(P.v)>.01)P.p=dest(P.p,P.v>=0?P.hdg:(P.hdg+180)%360,Math.abs(P.v)*dt);
   if(Math.abs(P.vs)>.01)P.p=dest(P.p,(P.hdg+(P.vs>0?90:270))%360,Math.abs(P.vs)*dt);
   P.p[0]=Math.max(29.2,Math.min(33.6,P.p[0]));P.p[1]=Math.max(33.9,Math.min(36.2,P.p[1]));
@@ -513,8 +516,8 @@ $("hudPause").onclick=e=>{if(!flight)return;flight.paused=!flight.paused;e.targe
 map.on("dragstart",()=>{if(flight&&flight.ready&&!flight.paused){flight.paused=true;$("hudPause").textContent="המשך ▶"}});
 function tick(now){
   if(!flight||!flight.ready||flight.paused)return;
-  const f=flight,s=f.s,dt=Math.min(.06,(now-f.last)/1000);f.last=now;
-  const mps=95*f.speed; // ground speed in metres per second of playback
+  const f=flight,s=f.s,dt=Math.min(.25,(now-f.last)/1000);f.last=now;
+  const mps=Math.max(140,Math.min(420,s.len/100))*f.speed; // about 100 s per segment at ×1
   f.d=Math.min(s.len,f.d+mps*dt);
   const look=along(s,f.d+500),from=along(s,f.d-600),to=along(s,f.d+2000);
   let target=bearing(from,to),db=((target-f.brg+540)%360)-180;f.brg=(f.brg+db*Math.min(1,dt*1.4)+360)%360;
